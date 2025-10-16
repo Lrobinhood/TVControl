@@ -94,6 +94,8 @@ describe('App manual serial behaviour', () => {
         }),
       )
     })
+
+    expect(screen.getByText(/OK \(USB12345\)/i)).toBeInTheDocument()
   })
 
   it('falls back to active device when manual serial disabled and only one device available', async () => {
@@ -124,5 +126,7 @@ describe('App manual serial behaviour', () => {
         }),
       )
     })
+
+  expect(screen.getByText(/Vol \+ \(192\.168\.1\.30:5555\)/i)).toBeInTheDocument()
   })
 })

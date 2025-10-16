@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import './App.css'
 
 const COMMAND_LABELS = {
@@ -107,6 +107,123 @@ const DEFAULT_PREFERENCES = {
   useManualSerial: false,
 }
 
+const MESSAGE_TTL = 5000
+const MAX_MESSAGES = 5
+
+const RemotePanel = memo(function RemotePanel({
+  manualActive,
+  hasConnectedDevices,
+  channelInput,
+  submitChannelChange,
+  handleDigitPress,
+  sendDpad,
+  sendCommand,
+  onClearChannel,
+}) {
+  const controlsDisabled = !manualActive && !hasConnectedDevices
+
+  return (
+    <section className="card">
+      <h2>Remote Control</h2>
+      <div className="remote-layout">
+        <div className="remote-group">
+          <h3>Directional Pad</h3>
+          <div className="dpad">
+            <button type="button" className="remote-button" onClick={() => sendDpad('up')} disabled={controlsDisabled}>
+              {COMMAND_LABELS[DPAD_ACTIONS.up]}
+            </button>
+            <button type="button" className="remote-button" onClick={() => sendDpad('left')} disabled={controlsDisabled}>
+              {COMMAND_LABELS[DPAD_ACTIONS.left]}
+            </button>
+            <button type="button" className="remote-button" onClick={() => sendDpad('center')} disabled={controlsDisabled}>
+              {COMMAND_LABELS[DPAD_ACTIONS.center]}
+            </button>
+            <button type="button" className="remote-button" onClick={() => sendDpad('right')} disabled={controlsDisabled}>
+              {COMMAND_LABELS[DPAD_ACTIONS.right]}
+            </button>
+            <button type="button" className="remote-button" onClick={() => sendDpad('down')} disabled={controlsDisabled}>
+              {COMMAND_LABELS[DPAD_ACTIONS.down]}
+            </button>
+          </div>
+          <div className="color-keys">
+            {COLOR_KEY_BUTTONS.map(({ action, variant }) => (
+              <button
+                type="button"
+                key={action}
+                className={`remote-button ${variant ? `remote-button--${variant}` : ''}`}
+                onClick={() => void sendCommand(action)}
+                disabled={controlsDisabled}
+              >
+                {COMMAND_LABELS[action] ?? action}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="remote-group">
+          <h3>Channel</h3>
+          <form className="channel-form" onSubmit={submitChannelChange}>
+            <div className="channel-display" aria-live="polite" aria-label="Pending channel entry">
+              {channelInput || '---'}
+            </div>
+            <div className="channel-form__actions">
+              <button
+                className="primary-button"
+                type="submit"
+                disabled={controlsDisabled || channelInput.length === 0}
+              >
+                Change
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={onClearChannel}
+                disabled={controlsDisabled || channelInput.length === 0}
+              >
+                Clear
+              </button>
+            </div>
+          </form>
+          <div className="number-pad">
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((number) => (
+              <button
+                type="button"
+                key={number}
+                className="remote-button"
+                onClick={() => handleDigitPress(number)}
+                disabled={controlsDisabled}
+              >
+                {number}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="remote-group remote-group--grid">
+          {ACTION_GROUPS.map((group) => (
+            <div key={group.title} className="remote-subgroup">
+              <h3>{group.title}</h3>
+              <div className="remote-buttons">
+                {group.buttons.map(({ action, variant }) => (
+                  <button
+                    type="button"
+                    key={action}
+                    className={`remote-button ${variant ? `remote-button--${variant}` : ''}`}
+                    onClick={() => void sendCommand(action)}
+                    disabled={controlsDisabled}
+                  >
+                    {COMMAND_LABELS[action] ?? action}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+})
+
 function loadStoredPreferences() {
   if (typeof window === 'undefined') {
     return { ...DEFAULT_PREFERENCES }
@@ -135,11 +252,31 @@ function loadStoredPreferences() {
   }
 }
 
+function createMessageId() {
+  if (typeof crypto === 'object' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `msg-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
+}
+
 function App() {
   const storedPreferencesRef = useRef(loadStoredPreferences())
   const [deviceHost, setDeviceHost] = useState(storedPreferencesRef.current.deviceHost)
   const [devices, setDevices] = useState([])
   const [statusMessage, setStatusMessage] = useState(null)
+  const messageTimersRef = useRef(new Map())
+  const [messageFeed, dispatchMessage] = useReducer((state, action) => {
+    switch (action.type) {
+      case 'push':
+        return [action.payload, ...state].slice(0, MAX_MESSAGES)
+      case 'remove':
+        return state.filter((entry) => entry.id !== action.id)
+      case 'clear':
+        return []
+      default:
+        return state
+    }
+  }, [])
   const [isConnecting, setIsConnecting] = useState(false)
   const [channelInput, setChannelInput] = useState('')
   const [statusErrorCount, setStatusErrorCount] = useState(0)
@@ -218,6 +355,30 @@ function App() {
     const intervalId = setInterval(refreshStatus, 5000)
     return () => clearInterval(intervalId)
   }, [refreshStatus])
+
+  useEffect(() => {
+    const timers = messageTimersRef.current
+    return () => {
+      timers.forEach((timerId) => clearTimeout(timerId))
+      timers.clear()
+    }
+  }, [])
+
+  const pushMessage = useCallback((payload) => {
+    const entry = {
+      id: createMessageId(),
+      createdAt: Date.now(),
+      ...payload,
+    }
+    dispatchMessage({ type: 'push', payload: entry })
+
+    const timerId = setTimeout(() => {
+      dispatchMessage({ type: 'remove', id: entry.id })
+      messageTimersRef.current.delete(entry.id)
+    }, MESSAGE_TTL)
+
+    messageTimersRef.current.set(entry.id, timerId)
+  }, [])
 
   const connectedDevices = useMemo(
     () => devices.filter((device) => device.state === 'device'),
@@ -334,12 +495,14 @@ function App() {
           throw new Error(payload.error ?? payload.detail ?? 'Command failed')
         }
         updateStatusMessage({ type: 'success', text: `${COMMAND_LABELS[action] ?? action} command sent` })
+        pushMessage({ type: 'success', text: `${COMMAND_LABELS[action] ?? action} (${targetSerial || 'default'})` })
       } catch (error) {
         console.error('Command failed', error)
         updateStatusMessage({ type: 'error', text: error.message })
+  pushMessage({ type: 'error', text: error.message })
       }
     },
-    [isConnected, resolveActiveSerial, updateStatusMessage],
+    [isConnected, pushMessage, resolveActiveSerial, updateStatusMessage],
   )
 
   const submitChannelChange = useCallback(
@@ -377,15 +540,17 @@ function App() {
           throw new Error(payload.error ?? payload.detail ?? 'Failed to change channel')
         }
         updateStatusMessage({ type: 'success', text: `Channel changed to ${payload.channel}` })
+  pushMessage({ type: 'success', text: `Channel → ${payload.channel}` })
         if (isMountedRef.current) {
           setChannelInput('')
         }
       } catch (error) {
         console.error('Channel change failed', error)
         updateStatusMessage({ type: 'error', text: error.message })
+  pushMessage({ type: 'error', text: error.message })
       }
     },
-    [channelInput, isConnected, resolveActiveSerial, updateStatusMessage],
+    [channelInput, isConnected, pushMessage, resolveActiveSerial, updateStatusMessage],
   )
 
   const sendDpad = useCallback(
@@ -397,6 +562,10 @@ function App() {
     },
     [sendCommand],
   )
+
+  const clearChannelInput = useCallback(() => {
+    setChannelInput('')
+  }, [])
 
   const handleDigitPress = useCallback(
     (digit) => {
@@ -530,97 +699,43 @@ function App() {
         </div>
       ) : null}
 
-      <section className="card">
-        <h2>Remote Control</h2>
-        <div className="remote-layout">
-          <div className="remote-group">
-            <h3>Directional Pad</h3>
-            <div className="dpad">
-              <button type="button" className="remote-button" onClick={() => sendDpad('up')} disabled={!manualActive && !connectedDevices.length}>
-                {COMMAND_LABELS[DPAD_ACTIONS.up]}
-              </button>
-              <button type="button" className="remote-button" onClick={() => sendDpad('left')} disabled={!manualActive && !connectedDevices.length}>
-                {COMMAND_LABELS[DPAD_ACTIONS.left]}
-              </button>
-              <button type="button" className="remote-button" onClick={() => sendDpad('center')} disabled={!manualActive && !connectedDevices.length}>
-                {COMMAND_LABELS[DPAD_ACTIONS.center]}
-              </button>
-              <button type="button" className="remote-button" onClick={() => sendDpad('right')} disabled={!manualActive && !connectedDevices.length}>
-                {COMMAND_LABELS[DPAD_ACTIONS.right]}
-              </button>
-              <button type="button" className="remote-button" onClick={() => sendDpad('down')} disabled={!manualActive && !connectedDevices.length}>
-                {COMMAND_LABELS[DPAD_ACTIONS.down]}
-              </button>
-            </div>
-            <div className="color-keys">
-              {COLOR_KEY_BUTTONS.map(({ action, variant }) => (
+      <RemotePanel
+        manualActive={manualActive}
+        hasConnectedDevices={connectedDevices.length > 0}
+        channelInput={channelInput}
+        submitChannelChange={submitChannelChange}
+        handleDigitPress={handleDigitPress}
+        sendDpad={sendDpad}
+        sendCommand={sendCommand}
+        onClearChannel={clearChannelInput}
+      />
+
+      {messageFeed.length > 0 ? (
+        <div className="message-feed card" aria-live="polite" aria-atomic="false">
+          <h2>Activity</h2>
+          <ul className="message-feed__list">
+              {messageFeed.map((entry) => (
+                <li key={entry.id} className={`message-feed__item message-feed__item--${entry.type}`}>
+                <span className="message-feed__text">{entry.text}</span>
                 <button
                   type="button"
-                  key={action}
-                  className={`remote-button ${variant ? `remote-button--${variant}` : ''}`}
-                  onClick={() => void sendCommand(action)}
-                  disabled={!manualActive && !connectedDevices.length}
+                  className="message-feed__dismiss"
+                    onClick={() => {
+                      dispatchMessage({ type: 'remove', id: entry.id })
+                      const timerId = messageTimersRef.current.get(entry.id)
+                      if (timerId) {
+                        clearTimeout(timerId)
+                        messageTimersRef.current.delete(entry.id)
+                      }
+                    }}
                 >
-                  {COMMAND_LABELS[action] ?? action}
+                  ×
                 </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="remote-group">
-            <h3>Channel</h3>
-            <form className="channel-form" onSubmit={submitChannelChange}>
-              <input
-                className="text-input"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={channelInput}
-                onChange={(event) => setChannelInput(event.target.value)}
-                placeholder="Enter channel number"
-                disabled={!manualActive && !connectedDevices.length}
-              />
-              <button className="primary-button" type="submit" disabled={!manualActive && !connectedDevices.length}>
-                Change
-              </button>
-            </form>
-            <div className="number-pad">
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((number) => (
-                <button
-                  type="button"
-                  key={number}
-                  className="remote-button"
-                  onClick={() => handleDigitPress(number)}
-                  disabled={!manualActive && !connectedDevices.length}
-                >
-                  {number}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="remote-group remote-group--grid">
-            {ACTION_GROUPS.map((group) => (
-              <div key={group.title} className="remote-subgroup">
-                <h3>{group.title}</h3>
-                <div className="remote-buttons">
-                  {group.buttons.map(({ action, variant }) => (
-                    <button
-                      type="button"
-                      key={action}
-                      className={`remote-button ${variant ? `remote-button--${variant}` : ''}`}
-                      onClick={() => void sendCommand(action)}
-                      disabled={!manualActive && !connectedDevices.length}
-                    >
-                      {COMMAND_LABELS[action] ?? action}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
-      </section>
+      ) : null}
     </div>
   )
 }
