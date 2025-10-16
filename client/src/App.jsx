@@ -100,18 +100,53 @@ const COLOR_KEY_BUTTONS = [
 
 const PREFERENCE_STORAGE_KEY = 'tvcontrol:preferences'
 
+const DEFAULT_PREFERENCES = {
+  deviceHost: '',
+  manualSerial: '',
+  selectedSerial: '',
+  useManualSerial: false,
+}
+
+function loadStoredPreferences() {
+  if (typeof window === 'undefined') {
+    return { ...DEFAULT_PREFERENCES }
+  }
+
+  try {
+    const raw = window.localStorage.getItem(PREFERENCE_STORAGE_KEY)
+    if (!raw) {
+      return { ...DEFAULT_PREFERENCES }
+    }
+
+    const parsed = JSON.parse(raw)
+    const manualSerial = typeof parsed.manualSerial === 'string' ? parsed.manualSerial : ''
+    const savedManualSerialFlag = typeof parsed.useManualSerial === 'boolean' ? parsed.useManualSerial : false
+    const useManualSerial = savedManualSerialFlag && manualSerial.trim().length > 0
+
+    return {
+      deviceHost: typeof parsed.deviceHost === 'string' ? parsed.deviceHost : '',
+      manualSerial,
+      selectedSerial: typeof parsed.selectedSerial === 'string' ? parsed.selectedSerial : '',
+      useManualSerial,
+    }
+  } catch (error) {
+    console.warn('Failed to restore saved preferences', error)
+    return { ...DEFAULT_PREFERENCES }
+  }
+}
+
 function App() {
-  const [deviceHost, setDeviceHost] = useState('')
+  const storedPreferencesRef = useRef(loadStoredPreferences())
+  const [deviceHost, setDeviceHost] = useState(storedPreferencesRef.current.deviceHost)
   const [devices, setDevices] = useState([])
   const [statusMessage, setStatusMessage] = useState(null)
   const [isConnecting, setIsConnecting] = useState(false)
   const [channelInput, setChannelInput] = useState('')
   const [statusErrorCount, setStatusErrorCount] = useState(0)
-  const [selectedSerial, setSelectedSerial] = useState('')
-  const [useManualSerial, setUseManualSerial] = useState(false)
-  const [manualSerial, setManualSerial] = useState('')
+  const [selectedSerial, setSelectedSerial] = useState(storedPreferencesRef.current.selectedSerial)
+  const [useManualSerial, setUseManualSerial] = useState(storedPreferencesRef.current.useManualSerial)
+  const [manualSerial, setManualSerial] = useState(storedPreferencesRef.current.manualSerial)
   const isMountedRef = useRef(true)
-  const preferencesLoadedRef = useRef(false)
 
   useEffect(() => {
     return () => {
@@ -121,33 +156,6 @@ function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') {
-      preferencesLoadedRef.current = true
-      return
-    }
-
-    try {
-      const stored = localStorage.getItem(PREFERENCE_STORAGE_KEY)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        const manualSerialValue = typeof parsed.manualSerial === 'string' ? parsed.manualSerial : ''
-        const storedSelectedSerial = typeof parsed.selectedSerial === 'string' ? parsed.selectedSerial : ''
-        const storedUseManualSerial = typeof parsed.useManualSerial === 'boolean' ? parsed.useManualSerial : false
-        const storedDeviceHost = typeof parsed.deviceHost === 'string' ? parsed.deviceHost : ''
-
-        setManualSerial(manualSerialValue)
-        setSelectedSerial(storedSelectedSerial)
-        setUseManualSerial(storedUseManualSerial && manualSerialValue.trim().length > 0)
-        setDeviceHost(storedDeviceHost)
-      }
-    } catch (error) {
-      console.warn('Failed to restore saved preferences', error)
-    } finally {
-      preferencesLoadedRef.current = true
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!preferencesLoadedRef.current || typeof window === 'undefined') {
       return
     }
 
