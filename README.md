@@ -8,8 +8,10 @@ TVControl is a web-based remote controller for Android TV devices built with a R
 - Live device status and connection state
 - Channel shortcuts with numeric keypad and direct channel input
 - Media controls for playback, volume, mute, and power states
+- Media controls for playback, volume, mute, color keys, and power states
 - Directional pad for navigation (D-pad and center select)
 - REST API endpoints for integration with other tools or automations
+- Remembers your last manual serial and target selection between sessions
 
 ## Prerequisites
 
@@ -43,12 +45,14 @@ If the Android TV cannot be reached over the network, keep it attached to the co
 1. Connect the TV with a USB cable and run `adb devices` to confirm it appears with the `device` state.
 2. Leave the cable attached (or execute `adb tcpip 5555` if you plan to migrate to Wi-Fi later). TVControl will attempt to list the USB device automatically when you open the app.
 3. In the UI, either click the detected USB device or toggle **Use manual serial** and paste the serial from `adb devices`. As long as the manual serial field contains a value, every command in the remote remains enabled.
+4. Your manual serial entry and toggle preference are saved locally so the remote is ready the next time you open the page.
 
 ### Operate the Remote
 
 - Review the status pill in the header to make sure it reads `Manual control active` or reports at least one online device.
 - Use the D-pad cluster for navigation, and the center button for `OK`/`Enter` actions.
 - Volume, channel, media, and system controls are organised into dedicated groups. Clicking a button sends the associated ADB key event immediately.
+- The red, green, yellow, and blue buttons appear below the directional pad for quick access to common shortcuts.
 - Enter a channel number in the **Change** form or tap digits on the numeric pad. The UI sends the digit sequence automatically and follows with `Enter`.
 - Success or error messages appear beneath the connection card so you can verify each action.
 
@@ -74,6 +78,7 @@ If the Android TV cannot be reached over the network, keep it attached to the co
 - 页面顶部的状态标签会显示当前连接概况，例如“Manual control active”。
 - 使用方向键区域进行导航，中央按键等同于确认 (`OK/Enter`)。
 - 音量、频道、媒体与系统功能按键以分组展示，点击即刻发送对应的 ADB 指令。
+- **Color Keys** 分组提供红、绿、黄、蓝四个彩色按键，对应实体遥控器的快捷键。
 - 可在频道输入框填写频道号并点击 **Change**，或直接点击数字小键盘；系统会依次发送每个数字并自动补发 `Enter`。
 - 每次操作的成功/错误提示会显示在连接区域下方，便于确认指令是否生效。
 

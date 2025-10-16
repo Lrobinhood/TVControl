@@ -26,6 +26,10 @@ const COMMAND_LABELS = {
   dpad_left: 'Left',
   dpad_right: 'Right',
   dpad_center: 'OK',
+  color_red: 'Red',
+  color_green: 'Green',
+  color_yellow: 'Yellow',
+  color_blue: 'Blue',
   enter: 'Enter',
   digit_0: '0',
   digit_1: '1',
@@ -87,6 +91,15 @@ const DPAD_ACTIONS = {
   center: 'dpad_center',
 }
 
+const COLOR_KEY_BUTTONS = [
+  { action: 'color_red', variant: 'red' },
+  { action: 'color_green', variant: 'green' },
+  { action: 'color_yellow', variant: 'yellow' },
+  { action: 'color_blue', variant: 'blue' },
+]
+
+const PREFERENCE_STORAGE_KEY = 'tvcontrol:preferences'
+
 function App() {
   const [deviceHost, setDeviceHost] = useState('')
   const [devices, setDevices] = useState([])
@@ -98,12 +111,58 @@ function App() {
   const [useManualSerial, setUseManualSerial] = useState(false)
   const [manualSerial, setManualSerial] = useState('')
   const isMountedRef = useRef(true)
+  const preferencesLoadedRef = useRef(false)
 
   useEffect(() => {
     return () => {
       isMountedRef.current = false
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      preferencesLoadedRef.current = true
+      return
+    }
+
+    try {
+      const stored = localStorage.getItem(PREFERENCE_STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        const manualSerialValue = typeof parsed.manualSerial === 'string' ? parsed.manualSerial : ''
+        const storedSelectedSerial = typeof parsed.selectedSerial === 'string' ? parsed.selectedSerial : ''
+        const storedUseManualSerial = typeof parsed.useManualSerial === 'boolean' ? parsed.useManualSerial : false
+        const storedDeviceHost = typeof parsed.deviceHost === 'string' ? parsed.deviceHost : ''
+
+        setManualSerial(manualSerialValue)
+        setSelectedSerial(storedSelectedSerial)
+        setUseManualSerial(storedUseManualSerial && manualSerialValue.trim().length > 0)
+        setDeviceHost(storedDeviceHost)
+      }
+    } catch (error) {
+      console.warn('Failed to restore saved preferences', error)
+    } finally {
+      preferencesLoadedRef.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!preferencesLoadedRef.current || typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      const payload = {
+        manualSerial,
+        selectedSerial,
+        useManualSerial,
+        deviceHost,
+      }
+      localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(payload))
+    } catch (error) {
+      console.warn('Failed to persist preferences', error)
+    }
+  }, [deviceHost, manualSerial, selectedSerial, useManualSerial])
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -484,6 +543,19 @@ function App() {
               <button type="button" className="remote-button" onClick={() => sendDpad('down')} disabled={!manualActive && !connectedDevices.length}>
                 {COMMAND_LABELS[DPAD_ACTIONS.down]}
               </button>
+            </div>
+            <div className="color-keys">
+              {COLOR_KEY_BUTTONS.map(({ action, variant }) => (
+                <button
+                  type="button"
+                  key={action}
+                  className={`remote-button ${variant ? `remote-button--${variant}` : ''}`}
+                  onClick={() => void sendCommand(action)}
+                  disabled={!manualActive && !connectedDevices.length}
+                >
+                  {COMMAND_LABELS[action] ?? action}
+                </button>
+              ))}
             </div>
           </div>
 
