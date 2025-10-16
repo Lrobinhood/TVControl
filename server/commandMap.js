@@ -1,0 +1,57 @@
+'use strict';
+
+const COMMAND_KEY_EVENTS = {
+  power_toggle: ['KEYCODE_POWER'],
+  power_on: ['KEYCODE_WAKEUP'],
+  power_off: ['KEYCODE_SLEEP'],
+  home: ['KEYCODE_HOME'],
+  back: ['KEYCODE_BACK'],
+  menu: ['KEYCODE_MENU'],
+  info: ['KEYCODE_INFO'],
+  tv_guide: ['KEYCODE_GUIDE'],
+  volume_up: ['KEYCODE_VOLUME_UP'],
+  volume_down: ['KEYCODE_VOLUME_DOWN'],
+  mute: ['KEYCODE_VOLUME_MUTE'],
+  channel_up: ['KEYCODE_CHANNEL_UP'],
+  channel_down: ['KEYCODE_CHANNEL_DOWN'],
+  play_pause: ['KEYCODE_MEDIA_PLAY_PAUSE'],
+  stop: ['KEYCODE_MEDIA_STOP'],
+  rewind: ['KEYCODE_MEDIA_REWIND'],
+  fast_forward: ['KEYCODE_MEDIA_FAST_FORWARD'],
+  dpad_up: ['KEYCODE_DPAD_UP'],
+  dpad_down: ['KEYCODE_DPAD_DOWN'],
+  dpad_left: ['KEYCODE_DPAD_LEFT'],
+  dpad_right: ['KEYCODE_DPAD_RIGHT'],
+  dpad_center: ['KEYCODE_DPAD_CENTER'],
+  enter: ['KEYCODE_ENTER'],
+  settings: ['KEYCODE_SETTINGS'],
+  source: ['KEYCODE_TV_INPUT'],
+  digit_0: ['KEYCODE_0'],
+  digit_1: ['KEYCODE_1'],
+  digit_2: ['KEYCODE_2'],
+  digit_3: ['KEYCODE_3'],
+  digit_4: ['KEYCODE_4'],
+  digit_5: ['KEYCODE_5'],
+  digit_6: ['KEYCODE_6'],
+  digit_7: ['KEYCODE_7'],
+  digit_8: ['KEYCODE_8'],
+  digit_9: ['KEYCODE_9'],
+};
+
+const DIGIT_KEYCODES = {
+  '0': 'KEYCODE_0',
+  '1': 'KEYCODE_1',
+  '2': 'KEYCODE_2',
+  '3': 'KEYCODE_3',
+  '4': 'KEYCODE_4',
+  '5': 'KEYCODE_5',
+  '6': 'KEYCODE_6',
+  '7': 'KEYCODE_7',
+  '8': 'KEYCODE_8',
+  '9': 'KEYCODE_9',
+};
+
+module.exports = {
+  COMMAND_KEY_EVENTS,
+  DIGIT_KEYCODES,
+};
