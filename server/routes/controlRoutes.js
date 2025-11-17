@@ -3,6 +3,7 @@
 const express = require('express');
 const adbService = require('../adbService');
 const { COMMAND_KEY_EVENTS, DIGIT_KEYCODES } = require('../commandMap');
+const infraredService = require('../infraredService');
 
 const router = express.Router();
 
@@ -102,6 +103,39 @@ router.post('/text', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     handleError(res, error, 'Failed to input text');
+  }
+});
+
+router.get('/infrared', async (req, res) => {
+  try {
+    const serial = req.query?.serial?.trim();
+
+    console.debug(`Reading infrared state for device: ${serial || 'default'}`);
+    const enabled = await infraredService.readInfraredState(serial);
+    console.debug(`Successfully read infrared state: ${enabled}`);
+    
+    res.json({ enabled });
+  } catch (error) {
+    console.error('Failed to read infrared state:', error);
+    handleError(res, error, 'Unable to read infrared state');
+  }
+});
+
+router.post('/infrared', async (req, res) => {
+  try {
+    const serial = req.body?.serial?.trim();
+    const { enabled } = req.body ?? {};
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'Request body must include boolean "enabled".' });
+    }
+
+    console.debug(`Setting infrared state to ${enabled} for device: ${serial || 'default'}`);
+    const nextState = await infraredService.writeInfraredState(enabled, serial);
+    console.debug(`Successfully set infrared state to ${nextState}`);
+
+    res.json({ enabled: nextState });
+  } catch (error) {
+    handleError(res, error, 'Unable to update infrared state');
   }
 });
 

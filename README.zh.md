@@ -8,6 +8,7 @@ TVControl 是一个基于 Web 的 Android TV 遥控器，前端使用 React，�
 - 实时查看设备列表与连接状态
 - 提供数字键盘与直接输入频道号的快捷换台功能
 - 支持播放、音量、静音、彩色键与电源等多种媒体控制指令
+- 提供红外遥控总开关，可一键禁用或启用电视的 IR 接收器
 - 包含方向键（D-Pad）与确认键的导航区域
 - 提供 REST API，便于与外部工具或自动化流程集成
 - 会在本地记住上一次的手动序列号和设备选择，方便下次快速控制
@@ -52,6 +53,7 @@ npm run dev
 - 使用方向键区进行导航，中央按键等同于确认 (`OK/Enter`)。
 - 音量、频道、媒体与系统功能按键按组排列，点击即刻发送对应的 ADB 指令。
 - 方向键下方提供红、绿、黄、蓝四个彩色按键，对应实体遥控器的常用快捷键。
+- **Infrared Remote** 卡片可快速开启或关闭电视的红外接收功能，防止实体遥控器误操作。大多数设备需要允许 `adb shell su`（root）访问才能写入该配置，如被拒绝请在电视上授权后再试；若 OEM 要求不同的脚本，可通过 `INFRARED_DISABLE_COMMAND` / `INFRARED_ENABLE_COMMAND` 指定自定义命令。
 - 可在频道输入框中填写频道号并点击 **Change**，或直接点击数字键盘；系统会依次发送每个数字并自动补发 `Enter`。
 - 成功或错误提示会显示在连接区域下方，便于追踪每一次指令的执行结果。
 
@@ -63,6 +65,8 @@ npm run dev
 - `POST /api/command` – 请求体 `{ "action": "volume_up", "serial": "可选的设备序列号" }`，发送映射的按键事件。完整列表见 `server/commandMap.js`。
 - `POST /api/channel` – 请求体 `{ "number": "101", "serial": "可选的设备序列号" }`，依序发送数字按键并在末尾追加 `Enter`。
 - `POST /api/text` – 请求体 `{ "text": "search query", "serial": "可选的设备序列号" }`，通过 `adb shell input text` 注入文本。
+- `GET /api/infrared` – 可选查询参数 `?serial=`，返回 `{ "enabled": true|false }`，读取 `/sys/class/remote/amremote/enable` 的当前值。访问该 sysfs 节点通常需要在设备上授予 shell 读取权限。
+- `POST /api/infrared` – 请求体 `{ "enabled": true|false, "serial": "可选的设备序列号" }`，设置同一路径以开启或关闭红外接收器。服务器在发现权限不足时会自动尝试 `su`，但最终仍需设备允许 root 访问。
 
 ## 生产环境构建
 
@@ -79,6 +83,11 @@ npm run build
 - `PORT` – 自定义 Express 服务器端口（默认 `5000`）。
 - `ADB_PATH` – 当 `adb` 不在 `PATH` 时，用于指定其绝对路径。
 - `ADB_COMMAND_TIMEOUT` – ADB 指令的超时时间（毫秒，默认 `5000`）。
+- `INFRARED_DISABLE_COMMAND` – 自定义关闭红外接收器的 shell 片段（由 `sh -c` 执行）。若默认 `echo 0 > /sys/class/remote/amremote/enable` 无效，可填入亲测有效的命令。
+- `INFRARED_ENABLE_COMMAND` – 自定义开启红外接收器的 shell 片段。
+- `INFRARED_READ_COMMAND` – 自定义读取红外状态的脚本，默认会尝试 `cat /sys/class/remote/amremote/enable` 及多种备选方式。
+- `INFRARED_VERIFY_ATTEMPTS` – 写入后重复读取验证的次数（默认 `6`）。
+- `INFRARED_VERIFY_DELAY` – 每次验证之间的延迟（毫秒，默认 `200`）。
 
 ## VS Code 任务
 

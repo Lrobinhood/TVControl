@@ -9,6 +9,7 @@ TVControl is a web-based remote controller for Android TV devices built with a R
 - Channel shortcuts with numeric keypad and direct channel input
 - Media controls for playback, volume, mute, and power states
 - Media controls for playback, volume, mute, color keys, and power states
+- Infrared remote master switch to enable/disable the TV's hardware IR receiver
 - Directional pad for navigation (D-pad and center select)
 - REST API endpoints for integration with other tools or automations
 - Remembers your last manual serial and target selection between sessions
@@ -53,6 +54,7 @@ If the Android TV cannot be reached over the network, keep it attached to the co
 - Use the D-pad cluster for navigation, and the center button for `OK`/`Enter` actions.
 - Volume, channel, media, and system controls are organised into dedicated groups. Clicking a button sends the associated ADB key event immediately.
 - The red, green, yellow, and blue buttons appear below the directional pad for quick access to common shortcuts.
+- The **Infrared Remote** card lets you enable or disable the TV's hardware IR receiver. Most devices require allowing `adb shell su` (root) access for this command to succeed; if access is denied, grant the permission and retry. If your device needs a different command sequence, set `INFRARED_DISABLE_COMMAND` / `INFRARED_ENABLE_COMMAND` with the exact shell you would run manually.
 - Enter a channel number in the **Change** form or tap digits on the numeric pad. The UI sends the digit sequence automatically and follows with `Enter`.
 - Success or error messages appear beneath the connection card so you can verify each action.
 
@@ -90,6 +92,8 @@ If the Android TV cannot be reached over the network, keep it attached to the co
 - `POST /api/command` – Body `{ "action": "volume_up", "serial": "optional-device-id" }` sends a mapped key event. See `server/commandMap.js` for all supported actions.
 - `POST /api/channel` – Body `{ "number": "101", "serial": "optional-device-id" }` sends digit key presses followed by enter.
 - `POST /api/text` – Body `{ "text": "search query", "serial": "optional-device-id" }` injects characters via `adb shell input text`.
+- `GET /api/infrared` – Optional query `?serial=` returns `{ "enabled": true|false }` by reading `/sys/class/remote/amremote/enable` on the device (requires shell permission to read that sysfs node).
+- `POST /api/infrared` – Body `{ "enabled": true|false, "serial": "optional-device-id" }` sets the same flag to turn the hardware IR receiver on or off. The server automatically retries with `su` if the first attempt is denied, but the device must ultimately allow root access for the command to succeed.
 
 ### Production Build
 
@@ -106,6 +110,11 @@ The generated files live in `client/dist`. Set `NODE_ENV=production` and run `np
 - `PORT` – Override the Express server port (default `5000`).
 - `ADB_PATH` – Absolute path to the `adb` executable if it is not on `PATH`.
 - `ADB_COMMAND_TIMEOUT` – Milliseconds to wait before aborting an ADB call (default `5000`).
+- `INFRARED_DISABLE_COMMAND` – Custom shell snippet (run via `sh -c`) to disable the infrared receiver. Use this if the default `echo 0 > /sys/class/remote/amremote/enable` does not work on your device.
+- `INFRARED_ENABLE_COMMAND` – Custom shell snippet to enable the receiver again.
+- `INFRARED_READ_COMMAND` – Custom shell snippet for reading the current IR state. Defaults to `cat /sys/class/remote/amremote/enable` with multiple fallbacks.
+- `INFRARED_VERIFY_ATTEMPTS` – How many times (default `6`) to re-read the state after a write before giving up.
+- `INFRARED_VERIFY_DELAY` – Delay in milliseconds between verification reads (default `200`).
 
 ## VS Code Task
 

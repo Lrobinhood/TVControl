@@ -109,6 +109,23 @@ const COLOR_KEY_BUTTONS = [
   { action: 'color_blue', variant: 'blue' },
 ]
 
+async function parseJsonSafely(response) {
+  const text = await response.text()
+  if (!text) {
+    return {}
+  }
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    console.error('Invalid JSON response from server', {
+      status: response.status,
+      text,
+      error,
+    })
+    throw new Error('Server returned an invalid JSON payload. Check backend logs for details.')
+  }
+}
+
 const PREFERENCE_STORAGE_KEY = 'tvcontrol:preferences'
 
 const DEFAULT_PREFERENCES = {
@@ -237,6 +254,61 @@ const RemotePanel = memo(function RemotePanel({
   )
 })
 
+const InfraredPanel = memo(function InfraredPanel({
+  isConnected,
+  infraredState,
+  onToggle,
+  onRefresh,
+}) {
+  const statusClass = infraredState.enabled == null
+    ? 'infrared-status--unknown'
+    : infraredState.enabled
+      ? 'infrared-status--enabled'
+      : 'infrared-status--disabled'
+  const statusLabel = infraredState.enabled == null ? 'Unknown' : infraredState.enabled ? 'Enabled' : 'Disabled'
+
+  return (
+    <section className="card infrared-card">
+      <div className="infrared-card__header">
+        <h2>Infrared Remote</h2>
+        <span className={`infrared-status ${statusClass}`}>
+          <span className="infrared-status__dot" />
+          {statusLabel}
+        </span>
+      </div>
+      <p className="infrared-card__copy">
+        Toggle the TV's hardware infrared receiver. When disabled, physical IR remotes will no longer control the device.
+      </p>
+      <div className="infrared-controls">
+        <button
+          type="button"
+          className="primary-button"
+          disabled={!isConnected || infraredState.loading}
+          onClick={onToggle}
+        >
+          {infraredState.loading
+            ? 'Applying...'
+            : infraredState.enabled
+              ? 'Disable Infrared Remote'
+              : infraredState.enabled === false
+                ? 'Enable Infrared Remote'
+                : 'Detect Infrared State'}
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onRefresh}
+          disabled={!isConnected || infraredState.loading}
+        >
+          Refresh
+        </button>
+      </div>
+      {infraredState.error ? <p className="infrared-error">{infraredState.error}</p> : null}
+      {!isConnected ? <p className="infrared-hint">Connect to a device to manage infrared power.</p> : null}
+    </section>
+  )
+})
+
 function loadStoredPreferences() {
   if (typeof window === 'undefined') {
     return { ...DEFAULT_PREFERENCES }
@@ -296,6 +368,7 @@ function App() {
   const [selectedSerial, setSelectedSerial] = useState(storedPreferencesRef.current.selectedSerial)
   const [useManualSerial, setUseManualSerial] = useState(storedPreferencesRef.current.useManualSerial)
   const [manualSerial, setManualSerial] = useState(storedPreferencesRef.current.manualSerial)
+  const [infraredState, setInfraredState] = useState({ enabled: null, loading: false, error: null })
   const isMountedRef = useRef(true)
 
   useEffect(() => {
@@ -483,6 +556,70 @@ function App() {
     return { serial: autoSerial }
   }, [connectedDevices, manualSerialValue, selectedSerial, useManualSerial])
 
+  const refreshInfraredState = useCallback(async () => {
+    if (!isConnected) {
+      setInfraredState({ enabled: null, loading: false, error: null })
+      return
+    }
+
+    const { serial: targetSerial, error } = resolveActiveSerial()
+    if (error) {
+      setInfraredState({ enabled: null, loading: false, error })
+      return
+    }
+
+    setInfraredState((current) => ({ ...current, loading: true, error: null }))
+    try {
+      const query = targetSerial ? `?serial=${encodeURIComponent(targetSerial)}` : ''
+      const response = await fetch(`/api/infrared${query}`)
+      const payload = await parseJsonSafely(response)
+      if (!response.ok) {
+        throw new Error(payload.error ?? payload.detail ?? 'Failed to read infrared state')
+      }
+      setInfraredState({ enabled: Boolean(payload.enabled), loading: false, error: null })
+    } catch (error) {
+      console.error('Infrared status refresh failed', error)
+      setInfraredState({ enabled: null, loading: false, error: error.message })
+    }
+  }, [isConnected, resolveActiveSerial])
+
+  const toggleInfrared = useCallback(async () => {
+    if (!isConnected) {
+      updateStatusMessage({ type: 'error', text: 'Connect to an Android TV device before managing infrared.' })
+      return
+    }
+
+    const { serial: targetSerial, error } = resolveActiveSerial()
+    if (error) {
+      updateStatusMessage({ type: 'error', text: error })
+      return
+    }
+
+    const desiredState = !(infraredState.enabled ?? false)
+    setInfraredState((current) => ({ ...current, loading: true, error: null }))
+    try {
+      const response = await fetch('/api/infrared', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: desiredState, serial: targetSerial || undefined }),
+      })
+      const payload = await parseJsonSafely(response)
+      if (!response.ok) {
+        throw new Error(payload.error ?? payload.detail ?? 'Failed to update infrared state')
+      }
+      const nextEnabled = typeof payload.enabled === 'boolean' ? payload.enabled : desiredState
+      setInfraredState({ enabled: nextEnabled, loading: false, error: null })
+      const statusText = nextEnabled ? 'Infrared remote enabled' : 'Infrared remote disabled'
+      updateStatusMessage({ type: 'success', text: statusText })
+      pushMessage({ type: 'success', text: statusText })
+    } catch (error) {
+      console.error('Infrared toggle failed', error)
+      setInfraredState((current) => ({ ...current, loading: false, error: error.message }))
+      updateStatusMessage({ type: 'error', text: error.message })
+      pushMessage({ type: 'error', text: error.message })
+    }
+  }, [infraredState.enabled, isConnected, pushMessage, resolveActiveSerial, updateStatusMessage])
+
   const sendCommand = useCallback(
     async (action) => {
       if (!isConnected) {
@@ -590,6 +727,15 @@ function App() {
     },
     [isConnected, sendCommand],
   )
+
+  useEffect(() => {
+    if (!isConnected) {
+      setInfraredState({ enabled: null, loading: false, error: null })
+      return
+    }
+
+    void refreshInfraredState()
+  }, [isConnected, manualSerialValue, refreshInfraredState, selectedSerial, useManualSerial])
 
   const statusSummary = useMemo(() => {
     if (useManualSerial) {
@@ -705,6 +851,13 @@ function App() {
           </p>
         </div>
       </section>
+
+      <InfraredPanel
+        isConnected={isConnected}
+        infraredState={infraredState}
+        onToggle={() => void toggleInfrared()}
+        onRefresh={() => void refreshInfraredState()}
+      />
 
       {statusMessage ? (
         <div className={`alert ${statusMessage.type === 'error' ? 'alert--error' : 'alert--success'}`}>
