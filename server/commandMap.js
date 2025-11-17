@@ -1,5 +1,12 @@
 'use strict';
 
+const COMMAND_METADATA = {
+  subtitle: {
+    keyCode: 'KEYCODE_CAPTIONS',
+    scanCode: 213,
+  },
+};
+
 const COMMAND_KEY_EVENTS = {
   power_toggle: ['KEYCODE_POWER'],
   power_on: ['KEYCODE_WAKEUP'],
@@ -28,6 +35,7 @@ const COMMAND_KEY_EVENTS = {
   color_yellow: ['KEYCODE_PROG_YELLOW'],
   color_blue: ['KEYCODE_PROG_BLUE'],
   enter: ['KEYCODE_ENTER'],
+  subtitle: [COMMAND_METADATA.subtitle.keyCode],
   settings: ['KEYCODE_SETTINGS'],
   source: ['KEYCODE_TV_INPUT'],
   digit_0: ['KEYCODE_0'],
@@ -58,4 +66,5 @@ const DIGIT_KEYCODES = {
 module.exports = {
   COMMAND_KEY_EVENTS,
   DIGIT_KEYCODES,
+  COMMAND_METADATA,
 };

@@ -10,6 +10,7 @@ const COMMAND_LABELS = {
   menu: 'Menu',
   info: 'Info',
   tv_guide: 'Guide',
+  subtitle: 'Subtitle',
   settings: 'Settings',
   source: 'Input',
   volume_up: 'Vol +',
@@ -43,6 +44,10 @@ const COMMAND_LABELS = {
   digit_9: '9',
 }
 
+const COMMAND_HINTS = {
+  subtitle: 'KeyCode: KEYCODE_CAPTIONS · ScanCode: 213',
+}
+
 const ACTION_GROUPS = [
   {
     title: 'System',
@@ -55,6 +60,12 @@ const ACTION_GROUPS = [
       { action: 'tv_guide' },
       { action: 'settings' },
       { action: 'source' },
+    ],
+  },
+  {
+    title: 'Captions',
+    buttons: [
+      { action: 'subtitle', variant: 'accent' },
     ],
   },
   {
@@ -151,6 +162,7 @@ const RemotePanel = memo(function RemotePanel({
                 type="button"
                 key={action}
                 className={`remote-button ${variant ? `remote-button--${variant}` : ''}`}
+                title={COMMAND_HINTS[action] ?? undefined}
                 onClick={() => void sendCommand(action)}
                 disabled={controlsDisabled}
               >
@@ -209,6 +221,7 @@ const RemotePanel = memo(function RemotePanel({
                     type="button"
                     key={action}
                     className={`remote-button ${variant ? `remote-button--${variant}` : ''}`}
+                    title={COMMAND_HINTS[action] ?? undefined}
                     onClick={() => void sendCommand(action)}
                     disabled={controlsDisabled}
                   >
